@@ -1,35 +1,57 @@
 <?php
 header("Content-Type: application/json");
-
 require_once __DIR__ . "/../Usuarios/config/db.php";
+
+$response = ["success" => false, "data" => []];
 
 try {
     $conexion = db::conexion();
 
-    $sql = "
-        SELECT 
-            id,
-            titulo,
-            contenido,
-            imagen,
-            autor_id,
-            fecha_publicacion
-        FROM noticias
-        ORDER BY fecha_publicacion DESC
-    ";
+    if (isset($_GET['id']) && !empty($_GET['id'])) {
+        $id = (int) $_GET['id'];
+        
+        $sql = "
+            SELECT 
+                id,
+                titulo,
+                contenido,
+                imagen,
+                autor_id,
+                fecha_publicacion 
+            FROM noticias 
+            WHERE id = :id
+        ";
+        
+        $stmt = $conexion->prepare($sql);
+        $stmt->execute([':id' => $id]);
+        $resultado = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        $response["data"] = $resultado ? [$resultado] : [];
+        $response["success"] = true;
+        
+    } else {
+        $sql = "
+            SELECT 
+                id,
+                titulo,
+                contenido,
+                imagen,
+                autor_id,
+                fecha_publicacion
+            FROM noticias
+            ORDER BY fecha_publicacion DESC
+        ";
+        
+        $stmt = $conexion->prepare($sql);
+        $stmt->execute();
+        
+        $response["data"] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $response["success"] = true;
+    }
 
-    $stmt = $conexion->prepare($sql);
-    $stmt->execute();
-
-    $noticias = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    echo json_encode([
-        "success" => true,
-        "data" => $noticias
-    ]);
 } catch (Exception $e) {
-    echo json_encode([
-        "success" => false,
-        "error" => "Error al obtener las noticias"
-    ]);
+    $response["message"] = "Error al obtener las noticias";
 }
+
+echo json_encode($response);
+?>

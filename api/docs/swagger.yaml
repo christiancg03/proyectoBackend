@@ -1,0 +1,1488 @@
+openapi: 3.0.0
+info:
+  title: GameNation API
+  description: Documentación oficial de la API de GameNation para el Proyecto Intermodular. Incluye todos los endpoints del backend en PHP consumidos por la aplicación Android y el Panel de Administración.
+  version: 1.0.0
+servers:
+  - url: http://localhost/GameNation/api
+    description: Servidor Local de Desarrollo (XAMPP)
+tags:
+  - name: Autenticación
+    description: Endpoints para control de accesos, registro y recuperación de contraseña.
+  - name: Noticias y Comentarios
+    description: Gestión de noticias y comentarios para la comunidad.
+  - name: Minijuegos
+    description: Preguntas del Quiz y palabras del ahorcado.
+  - name: Social y Mensajería
+    description: Gestión de amigos, solicitudes de amistad y chat.
+  - name: Perfil y Biblioteca
+    description: Gestión del perfil del usuario y su biblioteca personal de videojuegos.
+  - name: Contacto y Soporte
+    description: Envío de sugerencias o mensajes al soporte.
+  - name: Administración - General
+    description: Métricas generales y gestión de usuarios.
+  - name: Administración - Noticias
+    description: Gestión y moderación de noticias y comentarios por administradores.
+  - name: Administración - Reseñas
+    description: Publicación y mantenimiento de reseñas técnicas de videojuegos.
+  - name: Administración - Contacto
+    description: Gestión y respuesta a los mensajes de soporte recibidos.
+
+paths:
+  # --- AUTENTICACIÓN ---
+  /login.php:
+    post:
+      tags:
+        - Autenticación
+      summary: Iniciar sesión
+      description: Comprueba las credenciales del usuario y devuelve sus datos en caso de éxito.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                usuario:
+                  type: string
+                  description: Nombre de usuario o correo electrónico.
+                password:
+                  type: string
+                  description: Contraseña del usuario.
+              required:
+                - usuario
+                - password
+      responses:
+        '200':
+          description: Inicio de sesión correcto.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Usuario'
+        '401':
+          description: Credenciales incorrectas.
+
+  /registro.php:
+    post:
+      tags:
+        - Autenticación
+      summary: Registrar nuevo usuario
+      description: Permite registrar una nueva cuenta de usuario incluyendo una foto de perfil opcional.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                usuario:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                foto:
+                  type: string
+                  format: binary
+                  description: Archivo de imagen para la foto de perfil (Opcional).
+              required:
+                - usuario
+                - email
+                - password
+      responses:
+        '200':
+          description: Registro completado con éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /recuperar_password.php:
+    post:
+      tags:
+        - Autenticación
+      summary: Recuperación de contraseña olvidada
+      description: Endpoint con doble función ('comprobar' para validar el email y 'modificar' para actualizar la contraseña).
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [comprobar, modificar]
+                  description: Acción a realizar.
+                email:
+                  type: string
+                  format: email
+                  description: Requerido si la acción es 'comprobar'.
+                user_id:
+                  type: integer
+                  description: Requerido si la acción es 'modificar'.
+                password:
+                  type: string
+                  description: Nueva contraseña. Requerido si la acción es 'modificar'.
+              required:
+                - action
+      responses:
+        '200':
+          description: Operación completada con éxito.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  user_id:
+                    type: integer
+                    description: ID de usuario devuelto al comprobar el email para el siguiente paso.
+
+  # --- NOTICIAS Y COMENTARIOS ---
+  /noticias.php:
+    get:
+      tags:
+        - Noticias y Comentarios
+      summary: Obtener listado de noticias o una noticia por ID
+      description: Devuelve todas las noticias publicadas en el portal de Game Nation o los datos de una noticia específica si se proporciona su ID en la URL.
+      parameters:
+        - name: id
+          in: query
+          required: true
+          description: ID único de la noticia que se desea consultar. Deja este campo vacío si quieres listar todas las noticias.
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Operación realizada correctamente. Listado devuelto en formato JSON.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Noticia'
+
+  /comentarios.php:
+    get:
+      tags:
+        - Noticias y Comentarios
+      summary: Obtener comentarios de una noticia
+      description: Devuelve el árbol de comentarios de una noticia específica.
+      parameters:
+        - name: noticia_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Comentarios cargados correctamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Comentario'
+
+  /comentar.php:
+    post:
+      tags:
+        - Noticias y Comentarios
+      summary: Escribir un nuevo comentario
+      description: Permite a un usuario escribir un comentario en una noticia o responder a otro comentario existente.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                noticia_id:
+                  type: integer
+                usuario_id:
+                  type: integer
+                contenido:
+                  type: string
+                respuesta_a_id:
+                  type: integer
+                  description: ID del comentario al que se responde (Opcional).
+              required:
+                - noticia_id
+                - usuario_id
+                - contenido
+      responses:
+        '200':
+          description: Comentario creado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  # --- MINIJUEGOS ---
+  /quiz.php:
+    get:
+      tags:
+        - Minijuegos
+      summary: Obtener preguntas del Quiz
+      description: Devuelve un set de preguntas con opciones de respuesta para el minijuego de trivia.
+      responses:
+        '200':
+          description: Preguntas obtenidas con éxito.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        pregunta:
+                          type: string
+                        opcion_a:
+                          type: string
+                        opcion_b:
+                          type: string
+                        opcion_c:
+                          type: string
+                        opcion_d:
+                          type: string
+                        correcta:
+                          type: string
+                          description: Opción correcta ('A', 'B', 'C' o 'D').
+
+  /ahorcado.php:
+    get:
+      tags:
+        - Minijuegos
+      summary: Obtener palabra para el ahorcado
+      description: Devuelve una palabra aleatoria junto a su pista para jugar al ahorcado.
+      responses:
+        '200':
+          description: Palabra obtenida.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  palabra:
+                    type: string
+                  pista:
+                    type: string
+
+  # --- SOCIAL Y MENSAJERÍA ---
+  /amigos.php:
+    get:
+      tags:
+        - Social y Mensajería
+      summary: Listar amigos y solicitudes
+      description: Devuelve la lista de amigos y relaciones del usuario (incluyendo solicitudes pendientes y aceptadas).
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Lista de relaciones obtenida con éxito.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Amigo'
+
+  /mensajes_get.php:
+    get:
+      tags:
+        - Social y Mensajería
+      summary: Obtener chat entre dos usuarios
+      description: Carga el historial de conversación directo entre dos amigos.
+      parameters:
+        - name: usuario1
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: usuario2
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Mensajes obtenidos.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Mensaje'
+
+  /mensajes_send.php:
+    post:
+      tags:
+        - Social y Mensajería
+      summary: Enviar un mensaje de chat
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                emisor_id:
+                  type: integer
+                receptor_id:
+                  type: integer
+                contenido:
+                  type: string
+              required:
+                - emisor_id
+                - receptor_id
+                - contenido
+      responses:
+        '200':
+          description: Mensaje enviado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /buscar_usuario.php:
+    get:
+      tags:
+        - Social y Mensajería
+      summary: Buscar usuarios en la app
+      description: Permite buscar usuarios por nombre de usuario para mandar solicitudes de amistad.
+      parameters:
+        - name: usuario
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: mi_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Búsqueda realizada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        usuario:
+                          type: string
+                        foto:
+                          type: string
+                        estado_relacion:
+                          type: string
+                          description: 'Indica la relación (amigos, pendiente_enviada, pendiente_recibida, ninguna)'
+
+  /enviar_solicitud.php:
+    post:
+      tags:
+        - Social y Mensajería
+      summary: Enviar solicitud de amistad
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                usuario_id:
+                  type: integer
+                  description: El usuario que la envía.
+                amigo_id:
+                  type: integer
+                  description: El usuario destinatario.
+              required:
+                - usuario_id
+                - amigo_id
+      responses:
+        '200':
+          description: Solicitud enviada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /aceptar_solicitud.php:
+    post:
+      tags:
+        - Social y Mensajería
+      summary: Aceptar solicitud de amistad
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                usuario_id:
+                  type: integer
+                  description: ID del usuario al que le enviaron la solicitud.
+                amigo_id:
+                  type: integer
+                  description: ID del usuario que la originó.
+              required:
+                - usuario_id
+                - amigo_id
+      responses:
+        '200':
+          description: Solicitud aceptada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /rechazar_solicitud.php:
+    post:
+      tags:
+        - Social y Mensajería
+      summary: Rechazar solicitud de amistad
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                usuario_id:
+                  type: integer
+                amigo_id:
+                  type: integer
+              required:
+                - usuario_id
+                - amigo_id
+      responses:
+        '200':
+          description: Solicitud rechazada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /amigos_cancelar.php:
+    post:
+      tags:
+        - Social y Mensajería
+      summary: Cancelar solicitud enviada
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                usuario_id:
+                  type: integer
+                amigo_id:
+                  type: integer
+              required:
+                - usuario_id
+                - amigo_id
+      responses:
+        '200':
+          description: Solicitud cancelada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /amigo_eliminar.php:
+    post:
+      tags:
+        - Social y Mensajería
+      summary: Eliminar un amigo
+      description: Rompe la relación de amistad existente.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                usuario_id:
+                  type: integer
+                amigo_id:
+                  type: integer
+              required:
+                - usuario_id
+                - amigo_id
+      responses:
+        '200':
+          description: Relación eliminada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /perfil_amigo.php:
+    get:
+      tags:
+        - Social y Mensajería
+      summary: Ver perfil público de otro usuario/amigo
+      parameters:
+        - name: amigo_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Datos del perfil del amigo.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Usuario'
+
+  # --- PERFIL Y BIBLIOTECA ---
+  /biblioteca_listar.php:
+    get:
+      tags:
+        - Perfil y Biblioteca
+      summary: Listar videojuegos de la biblioteca del usuario
+      parameters:
+        - name: usuario_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Biblioteca obtenida correctamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BibliotecaItem'
+
+  /biblioteca_borrar.php:
+    post:
+      tags:
+        - Perfil y Biblioteca
+      summary: Eliminar juego de la biblioteca
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  description: ID del registro en la biblioteca.
+              required:
+                - id
+      responses:
+        '200':
+          description: Videojuego eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /biblioteca_add.php:
+    post:
+      tags:
+        - Perfil y Biblioteca
+      summary: Añadir videojuego a la biblioteca
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                usuario_id:
+                  type: string
+                titulo:
+                  type: string
+                saga:
+                  type: string
+                estado:
+                  type: string
+                  description: 'Por ejemplo: Completado, Jugando, Pendiente'
+                opinion:
+                  type: string
+                valoracion:
+                  type: string
+                  description: Nota del juego (1-5 o 1-10)
+                imagen:
+                  type: string
+                  format: binary
+              required:
+                - usuario_id
+                - titulo
+                - estado
+      responses:
+        '200':
+          description: Videojuego añadido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /biblioteca_editar.php:
+    post:
+      tags:
+        - Perfil y Biblioteca
+      summary: Editar videojuego de la biblioteca
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                  description: ID del registro.
+                titulo:
+                  type: string
+                saga:
+                  type: string
+                estado:
+                  type: string
+                opinion:
+                  type: string
+                valoracion:
+                  type: string
+                imagen:
+                  type: string
+                  format: binary
+              required:
+                - id
+                - titulo
+                - estado
+      responses:
+        '200':
+          description: Cambios guardados.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /editar_perfil.php:
+    post:
+      tags:
+        - Perfil y Biblioteca
+      summary: Modificar perfil del usuario
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                usuario_id:
+                  type: string
+                nombre_completo:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                fecha_nacimiento:
+                  type: string
+                  format: date
+                genero:
+                  type: string
+                pais:
+                  type: string
+                biografia:
+                  type: string
+                foto:
+                  type: string
+                  format: binary
+              required:
+                - usuario_id
+                - email
+      responses:
+        '200':
+          description: Perfil actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  # --- CONTACTO Y SOPORTE ---
+  /enviar_contacto.php:
+    post:
+      tags:
+        - Contacto y Soporte
+      summary: Enviar un mensaje de soporte
+      description: Permite enviar un mensaje de contacto o reporte al equipo administrativo de la plataforma.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                usuario_id:
+                  type: integer
+                mensaje:
+                  type: string
+              required:
+                - usuario_id
+                - mensaje
+      responses:
+        '200':
+          description: Mensaje enviado con éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /obtener_contacto.php:
+    get:
+      tags:
+        - Contacto y Soporte
+      summary: Ver mis mensajes de soporte enviados
+      description: Carga todos los mensajes que el usuario en sesión ha enviado junto con sus respuestas administrativas.
+      parameters:
+        - name: usuario_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Historial de soporte cargado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MensajeContacto'
+
+  # --- ZONA ADMINISTRADOR: GENERAL ---
+  /admin_dashboard.php:
+    get:
+      tags:
+        - Administración - General
+      summary: Métricas del Dashboard Admin
+      description: Obtiene las estadísticas generales (número de usuarios, noticias, reseñas, etc.) para la pantalla de inicio del administrador.
+      responses:
+        '200':
+          description: Estadísticas consolidadas devueltas.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  usuarios_totales:
+                    type: integer
+                  noticias_totales:
+                    type: integer
+                  resenas_totales:
+                    type: integer
+                  mensajes_soporte_pendientes:
+                    type: integer
+
+  /usuarios_listar.php:
+    get:
+      tags:
+        - Administración - General
+      summary: Listar todos los usuarios (Admin)
+      description: Devuelve todos los usuarios registrados en el sistema para labores de administración.
+      responses:
+        '200':
+          description: Listado cargado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Usuario'
+
+  /usuario_eliminar.php:
+    post:
+      tags:
+        - Administración - General
+      summary: Eliminar un usuario (Admin)
+      description: Borra permanentemente una cuenta de usuario.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+              required:
+                - id
+      responses:
+        '200':
+          description: Usuario eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  # --- ADMINISTRACIÓN: NOTICIAS y COMENTARIOS ---
+  /noticia_crear.php:
+    post:
+      tags:
+        - Administración - Noticias
+      summary: Crear nueva noticia
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                titulo:
+                  type: string
+                contenido:
+                  type: string
+                autor_id:
+                  type: string
+                  description: ID del Administrador redactor.
+                imagen:
+                  type: string
+                  format: binary
+              required:
+                - titulo
+                - contenido
+                - autor_id
+      responses:
+        '200':
+          description: Noticia creada con éxito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /noticia_editar.php:
+    post:
+      tags:
+        - Administración - Noticias
+      summary: Editar noticia existente
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                titulo:
+                  type: string
+                contenido:
+                  type: string
+                imagen:
+                  type: string
+                  format: binary
+              required:
+                - id
+                - titulo
+                - contenido
+      responses:
+        '200':
+          description: Modificación guardada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /noticia_eliminar.php:
+    post:
+      tags:
+        - Administración - Noticias
+      summary: Eliminar noticia
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+              required:
+                - id
+      responses:
+        '200':
+          description: Noticia borrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /comentarios_noticia.php:
+    get:
+      tags:
+        - Administración - Noticias
+      summary: Ver comentarios de una noticia para moderación
+      parameters:
+        - name: noticia_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Comentarios devueltos.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Comentario'
+
+  /comentario_eliminar.php:
+    post:
+      tags:
+        - Administración - Noticias
+      summary: Moderar y eliminar un comentario
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+              required:
+                - id
+      responses:
+        '200':
+          description: Comentario eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  # --- ADMINISTRACIÓN: RESEÑAS ---
+  /resenas.php:
+    get:
+      tags:
+        - Administración - Reseñas
+      summary: Obtener listado de reseñas técnicas
+      description: Devuelve todas las reseñas extendidas de videojuegos.
+      responses:
+        '200':
+          description: Reseñas obtenidas con éxito.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Resena'
+
+  /resena_crear.php:
+    post:
+      tags:
+        - Administración - Reseñas
+      summary: Publicar nueva reseña técnica (Admin)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                usuario_id:
+                  type: string
+                videojuego:
+                  type: string
+                opinion:
+                  type: string
+                puntuacion:
+                  type: string
+                fecha_lanzamiento:
+                  type: string
+                desarrollo:
+                  type: string
+                produccion:
+                  type: string
+                distribucion:
+                  type: string
+                precio:
+                  type: string
+                jugadores:
+                  type: string
+                formato:
+                  type: string
+                textos:
+                  type: string
+                voces:
+                  type: string
+                online:
+                  type: string
+                imagen:
+                  type: string
+                  format: binary
+              required:
+                - usuario_id
+                - videojuego
+                - opinion
+                - puntuacion
+      responses:
+        '200':
+          description: Reseña publicada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /resena_editar.php:
+    post:
+      tags:
+        - Administración - Reseñas
+      summary: Editar reseña técnica
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: string
+                videojuego:
+                  type: string
+                opinion:
+                  type: string
+                puntuacion:
+                  type: string
+                fecha_lanzamiento:
+                  type: string
+                desarrollo:
+                  type: string
+                produccion:
+                  type: string
+                distribucion:
+                  type: string
+                precio:
+                  type: string
+                jugadores:
+                  type: string
+                formato:
+                  type: string
+                textos:
+                  type: string
+                voces:
+                  type: string
+                online:
+                  type: string
+                imagen:
+                  type: string
+                  format: binary
+              required:
+                - id
+                - videojuego
+                - opinion
+                - puntuacion
+      responses:
+        '200':
+          description: Reseña guardada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  /resena_eliminar.php:
+    post:
+      tags:
+        - Administración - Reseñas
+      summary: Eliminar reseña
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+              required:
+                - id
+      responses:
+        '200':
+          description: Reseña eliminada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+  # --- ADMINISTRACIÓN: CONTACTO / SOPORTE ---
+  /admin_contactos_listar.php:
+    get:
+      tags:
+        - Administración - Contacto
+      summary: Listar todos los mensajes de contacto (Admin)
+      description: Devuelve el buzón de soporte completo para que el administrador pueda ver los mensajes de los usuarios.
+      responses:
+        '200':
+          description: Mensajes obtenidos.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MensajeContacto'
+
+  /contacto_responder.php:
+    post:
+      tags:
+        - Administración - Contacto
+      summary: Responder a un mensaje de contacto (Admin)
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  description: ID del mensaje de soporte.
+                respuesta:
+                  type: string
+                  description: Texto de la respuesta técnica.
+              required:
+                - id
+                - respuesta
+      responses:
+        '200':
+          description: Respuesta guardada y mensaje marcado como respondido/leído.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MensajeContacto'
+
+  /contacto_eliminar.php:
+    post:
+      tags:
+        - Administración - Contacto
+      summary: Eliminar un mensaje de soporte
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+              required:
+                - id
+      responses:
+        '200':
+          description: Mensaje eliminado del buzón.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleResponse'
+
+
+components:
+  schemas:
+    SimpleResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+          description: Mensaje explicativo del resultado de la acción.
+
+    Usuario:
+      type: object
+      properties:
+        id:
+          type: integer
+        usuario:
+          type: string
+        email:
+          type: string
+        nombre_completo:
+          type: string
+        fecha_nacimiento:
+          type: string
+          format: date
+        genero:
+          type: string
+        pais:
+          type: string
+        biografia:
+          type: string
+        foto:
+          type: string
+          description: Ruta relativa a la imagen de perfil.
+        rol:
+          type: string
+          description: 'Rol del usuario (por ejemplo: admin, user)'
+        creado_en:
+          type: string
+
+    Noticia:
+      type: object
+      properties:
+        id:
+          type: integer
+        titulo:
+          type: string
+        contenido:
+          type: string
+        imagen:
+          type: string
+          description: Ruta de la foto de la noticia.
+        fecha:
+          type: string
+          description: Fecha de publicación.
+        autor_id:
+          type: integer
+        autor_nombre:
+          type: string
+
+    Comentario:
+      type: object
+      properties:
+        id:
+          type: integer
+        noticia_id:
+          type: integer
+        usuario_id:
+          type: integer
+        usuario_nombre:
+          type: string
+        usuario_foto:
+          type: string
+        contenido:
+          type: string
+        fecha:
+          type: string
+        respuesta_a_id:
+          type: integer
+          nullable: true
+
+    Amigo:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: ID de la relación de amistad.
+        usuario_id:
+          type: integer
+        amigo_id:
+          type: integer
+        aceptado:
+          type: integer
+          description: '0 = Pendiente, 1 = Aceptado'
+        creado_en:
+          type: string
+        user_relacionado_id:
+          type: integer
+          description: El ID del amigo con el que se tiene la relación.
+        usuario:
+          type: string
+          description: Nombre de usuario de la relación.
+        foto:
+          type: string
+          description: Foto del amigo.
+
+    Mensaje:
+      type: object
+      properties:
+        id:
+          type: integer
+        emisor_id:
+          type: integer
+        receptor_id:
+          type: integer
+        contenido:
+          type: string
+        fecha:
+          type: string
+
+    Resena:
+      type: object
+      properties:
+        id:
+          type: integer
+        videojuego:
+          type: string
+        opinion:
+          type: string
+        puntuacion:
+          type: integer
+        fecha_lanzamiento:
+          type: string
+        desarrollo:
+          type: string
+        produccion:
+          type: string
+        distribucion:
+          type: string
+        precio:
+          type: string
+        jugadores:
+          type: string
+        formato:
+          type: string
+        textos:
+          type: string
+        voces:
+          type: string
+        online:
+          type: string
+        imagen:
+          type: string
+        creado_en:
+          type: string
+
+    BibliotecaItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        usuario_id:
+          type: integer
+        titulo:
+          type: string
+        saga:
+          type: string
+          nullable: true
+        estado:
+          type: string
+        opinion:
+          type: string
+          nullable: true
+        valoracion:
+          type: integer
+          nullable: true
+        imagen:
+          type: string
+          nullable: true
+
+    MensajeContacto:
+      type: object
+      properties:
+        id:
+          type: integer
+        usuario_id:
+          type: integer
+        mensaje:
+          type: string
+        respuesta:
+          type: string
+          nullable: true
+        fecha:
+          type: string
+        fecha_respuesta:
+          type: string
+          nullable: true
+        leido:
+          type: integer
+          description: '0 = No leido/No respondido, 1 = Respondido'
+        nombre:
+          type: string
+          description: Nombre del emisor (o su usuario).
+        email:
+          type: string
+          description: Email de contacto.
