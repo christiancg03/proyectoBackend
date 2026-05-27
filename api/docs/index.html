@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>GameNation API - Docs</title>
-  <!-- Estilos visuales oficiales de Swagger UI -->
   <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@latest/swagger-ui.css" />
   <style>
     html { box-sizing: border-box; overflow-y: scroll; }
@@ -13,16 +12,13 @@
 </head>
 <body>
 
-  <!-- Contenedor donde se dibuja la interfaz de Swagger -->
   <div id="swagger-ui"></div>
 
-  <!-- Scripts necesarios para procesar el archivo YAML -->
   <script src="https://unpkg.com/swagger-ui-dist@latest/swagger-ui-bundle.js"></script>
   <script src="https://unpkg.com/swagger-ui-dist@latest/swagger-ui-standalone-preset.js"></script>
   
   <script>
     window.onload = function() {
-      // Inicializar Swagger UI leyendo tu archivo swagger.yaml de la misma carpeta
       const ui = SwaggerUIBundle({
         url: "swagger.yaml",
         dom_id: '#swagger-ui',
